@@ -4,5 +4,5 @@ pandas==2.2.2
 numpy==1.26.4
 plotly==5.24.1
 scikit-learn==1.5.1
-wordcloud==1.9.6
+wordcloud
 matplotlib==3.9.2
