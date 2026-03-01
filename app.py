@@ -322,27 +322,27 @@ elif page == 'Salary Predictor':
     with col1:
         experience_level = st.selectbox(
             'Experience Level',
-            ['EN - Entry Level', 'MI - Mid Level',
-             'SE - Senior Level','EX - Executive Level']
+            ['EN – Entry Level', 'MI – Mid Level',
+             'SE – Senior Level','EX – Executive Level']
         )
         
         employment_type = st.selectbox(
             "Employment Type",
-            ['FT - Full Time', 'PT - Part Time',
-             'CT - Contract', 'FL - Freelance'
+            ['FT – Full Time', 'PT – Part Time',
+             'CT – Contract', 'FL – Freelance'
              ]
         )
         
         company_size = st.selectbox(
             "Company Size",
-            ['S - Small', 'M - Medium', 'L - Large']
+            ['S – Small', 'M – Medium', 'L – Large']
         )
         
         
     with col2:
         remote_ratio = st.selectbox(
             "Work Mode",
-            ['0 - On-site', '50 - hybrid', '100 - Remote']
+            ['0 – On-site', '50 – hybrid', '100 – Remote']
         )
         
         work_year = st.selectbox(
@@ -360,7 +360,7 @@ elif page == 'Salary Predictor':
             sorted(salary_df['company_location'].unique().tolist())
         )
         
-        
+         
     st.markdown("---")
     
     predict_btn = st.button("Predict Salary", type="primary")
@@ -368,10 +368,10 @@ elif page == 'Salary Predictor':
     if predict_btn:
         try:
             # Parse codes
-            exp_code = experience_level.split(" — ")[0]
-            emp_code = employment_type.split(" — ")[0]
-            size_code = company_size.split(" — ")[0]
-            remote_code = int(remote_ratio.split(" — ")[0])
+            exp_code = experience_level.split(" – ")[0]
+            emp_code = employment_type.split(" – ")[0]
+            size_code = company_size.split(" – ")[0]
+            remote_code = int(remote_ratio.split(" – ")[0])
 
             # Encode input using saved encoder dictionaries
             def encode_value(col, value):
