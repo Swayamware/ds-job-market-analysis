@@ -4,7 +4,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
-import pickle 
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 
@@ -18,24 +17,21 @@ st.set_page_config(
 
 
 # Loading Data and Model
-@st.cache_data
-def load_data():
-    df = pd.read_csv("data/naukri_nlp.csv")
-    salary_df = pd.read_csv("data/ds_salaries.csv")
-    return df, salary_df
-
 @st.cache_resource
 def load_model():
-    with open("data/salary_model.pkl", 'rb') as f:
-        model = pickle.load(f)
-    with open("data/encoders.pkl",'rb') as f:
-        encoders = pickle.load(f)
-    with open("data/feature_columns.pkl",'rb') as f:
-        feature_cols = pickle.load(f)
-    return model, encoders, feature_cols
+    import json
+    
+    with open("data/feature_columns.json", "r") as f:
+        feature_cols = json.load(f)
+    
+    with open("data/encoders.json", "r") as f:
+        encoder_dict = json.load(f)
+    
+    train_data = pd.read_csv("data/train_data.csv")
+    
+    return encoder_dict, feature_cols, train_data
 
-df, salary_df = load_data()
-model, encoders, feature_cols = load_model()
+encoder_dict, feature_cols, train_data = load_model()
 
 
 # Sidebar
@@ -362,102 +358,107 @@ elif page == 'Salary Predictor':
     
     predict_btn = st.button("Predict Salary", type="primary")
     
-    if predict_btn:
+if predict_btn:
+    try:
+        # Parse codes
+        exp_code = experience_level.split(" — ")[0]
+        emp_code = employment_type.split(" — ")[0]
+        size_code = company_size.split(" — ")[0]
+        remote_code = int(remote_ratio.split(" — ")[0])
+
+        # Encode input using saved encoder dictionaries
+        def encode_value(col, value):
+            if col in encoder_dict and value in encoder_dict[col]:
+                return encoder_dict[col][value]
+            return 0
+
+        encoded_input = {
+            "work_year": work_year,
+            "experience_level": encode_value("experience_level", exp_code),
+            "employment_type": encode_value("employment_type", emp_code),
+            "employee_residence": encode_value("employee_residence", employee_residence),
+            "remote_ratio": remote_code,
+            "company_location": encode_value("company_location", company_location),
+            "company_size": encode_value("company_size", size_code),
+            "job_category": encode_value("job_category", "data_scientist"),
+            "is_us_employee": int(employee_residence == "US"),
+            "is_us_company": int(company_location == "US")
+        }
+
+        # Find similar profiles in training data
+        # This is a nearest neighbor approach — find closest match
+        input_df = pd.DataFrame([encoded_input])[feature_cols]
         
-        try:
-            exp_code = experience_level.split(" - ")[0]
-            emp_code = employement_type.split(" - ")[0]
-            size_code = company_size.split(" - ")[0]
-            remote_code = int(remote_ratio.split(" - ")[0])
-            
-            input_data = pd.DataFrame([{
-                'work_year': work_year,
-                'experience_level': exp_code,
-                'employment_type':emp_code,
-                'employee_residence':employement_residence,
-                'remote_ratio' : remote_code,
-                'company_location':company_location,
-                'company_size': size_code,
-                "job_category":"data_scientist",
-                'us_employee': int(employement_residence == 'US'),
-                'us_company': int(company_location == 'US')
-            }])
-            
-            
-            for col in ['experience_level','employment_type',
-                        'employee_residence','company_location',
-                        'company_size','job_category']:
-                if col in encoders:
-                    le = encoders[col]
-                    input_data[col] = input_data[col].apply(
-                        lambda x: le.transform([x])[0]
-                        if x in le.classes_
-                        else 0
-                    )
-                    
-            input_data = input_data[feature_cols]
-            
-            prediction = model.predict(input_data)[0]
-            
-            st.success(f'### Predicted Annual Salary: ${prediction:,.0f} USD')
-            st.markdown('---')
-            
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Annual (USD)", f"${prediction:,.0f}")
-            with col2:
-                st.metric("Monthly (USD)", f"${prediction/12:,.0f}")
-            with col3:
-                inr = prediction * 83
-                st.metric("Annual (INR approx)", f"₹{inr:,.0f}")
-                
-            st.markdown('---')
-            
-            st.subheader("How does this compare?")
-            
-            exp_median = salary_df[
-                salary_df['experience_level'] == exp_code
-            ]['salary_in_usd'].median()
-            
-            overall_median = salary_df['salary_in_usd'].median()
-            
-            comparison_df = pd.DataFrame({
-                'category': [
-                    "Your Prediction",
-                    f"{exp_code} Level Median",
-                    "Overall Median" 
-                ],
-                'salary': [prediction, exp_median, overall_median]
-            })
-            
-            
-            fig = px.bar(
-                comparison_df,
-                x = 'category',
-                y = 'salary',
-                color = 'category',
-                color_discrete_sequence = ["#1B4F72", "#2E86C1", "#AED6F1"],
-                text = 'salary'
-            )
-            
-            fig.update_traces(
-                texttemplate = "$%{text:,.0f}",
-                textposition = 'outside'
-            )
-            fig.update_layout(
-                showlegend=False,
-                yaxis_title = 'Salary (USD)',
-                xaxis_title = ''
-            )
-            
-            st.plotly_chart(fig, use_container_width = True)
-            
-            st.caption(
-                "Model R2 = 0.353. Predictions carry ~$39,000 average error,"
-                "Use as directional guidance only , not exact figures. "
-            )
-            
-        except Exception as e:
-            st.error(f'Prediction Failed {str(e)}')
-            st.info("Try a different country code combination.")
+        # Calculate similarity score for each training row
+        train_features = train_data[feature_cols]
+        
+        # Weight experience level heavily as it's strongest predictor
+        weights = {col: 1 for col in feature_cols}
+        weights["experience_level"] = 3
+        weights["is_us_employee"] = 3
+        weights["is_us_company"] = 2
+
+        distances = pd.Series(0.0, index=train_data.index)
+        for col in feature_cols:
+            weight = weights.get(col, 1)
+            distances += weight * (train_features[col] - input_df[col].values[0]) ** 2
+
+        # Get 20 most similar profiles
+        closest_idx = distances.nsmallest(20).index
+        similar_salaries = train_data.loc[closest_idx, "salary"]
+        prediction = similar_salaries.median()
+
+        # Display results
+        st.success(f"### Predicted Annual Salary: ${prediction:,.0f} USD")
+        st.markdown("---")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Annual (USD)", f"${prediction:,.0f}")
+        with col2:
+            st.metric("Monthly (USD)", f"${prediction/12:,.0f}")
+        with col3:
+            inr = prediction * 83
+            st.metric("Annual (INR approx)", f"₹{inr:,.0f}")
+
+        st.markdown("---")
+        st.subheader("How Does This Compare?")
+
+        exp_median = salary_df[
+            salary_df["experience_level"] == exp_code
+        ]["salary_in_usd"].median()
+
+        overall_median = salary_df["salary_in_usd"].median()
+
+        comparison_df = pd.DataFrame({
+            "category": ["Your Prediction", 
+                        f"{exp_code} Level Median", 
+                        "Overall Median"],
+            "salary": [prediction, exp_median, overall_median]
+        })
+
+        fig = px.bar(
+            comparison_df,
+            x="category", y="salary",
+            color="category",
+            color_discrete_sequence=["#1B4F72", "#2E86C1", "#AED6F1"],
+            text="salary"
+        )
+        fig.update_traces(
+            texttemplate="$%{text:,.0f}",
+            textposition="outside"
+        )
+        fig.update_layout(
+            showlegend=False,
+            yaxis_title="Salary (USD)",
+            xaxis_title=""
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.caption(
+            "⚠️ Prediction uses nearest neighbor matching on training data. "
+            "Use as directional guidance only."
+        )
+
+    except Exception as e:
+        st.error(f"Prediction failed: {str(e)}")
