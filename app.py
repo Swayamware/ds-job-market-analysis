@@ -15,6 +15,13 @@ st.set_page_config(
 )
 
 
+@st.cache_data
+def load_data():
+    df = pd.read_csv("data/naukri_nlp.csv")
+    salary_df = pd.read_csv("data/ds_salaries.csv")
+    return df, salary_df
+
+df, salary_df = load_data()
 
 # Loading Data and Model
 @st.cache_resource
