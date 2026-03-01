@@ -326,7 +326,7 @@ elif page == 'Salary Predictor':
              'SE - Senior Level','EX - Executive Level']
         )
         
-        employement_type = st.selectbox(
+        employment_type = st.selectbox(
             "Employment Type",
             ['FT - Full Time', 'PT - Part Time',
              'CT - Contract', 'FL - Freelance'
@@ -350,7 +350,7 @@ elif page == 'Salary Predictor':
             [2023, 2022, 2021, 2000]
         )
         
-        employement_residence = st.selectbox(
+        employee_residence = st.selectbox(
             "Your Location (Country Code)",
             sorted(salary_df['employee_residence'].unique().tolist())
         )
